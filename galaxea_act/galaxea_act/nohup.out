@@ -1,0 +1,50 @@
+Traceback (most recent call last):
+  File "train.py", line 15, in <module>
+    from galaxea_act.dataset.episodic_dataset import load_data
+  File "/home/chen/ACT/galaxea_act/galaxea_act/dataset/episodic_dataset.py", line 12, in <module>
+    from torchvision import transforms
+  File "/home/chen/anaconda3/envs/galaxea_act/lib/python3.8/site-packages/torchvision/__init__.py", line 10, in <module>
+    from torchvision import _meta_registrations, datasets, io, models, ops, transforms, utils  # usort:skip
+  File "/home/chen/anaconda3/envs/galaxea_act/lib/python3.8/site-packages/torchvision/models/__init__.py", line 17, in <module>
+    from . import detection, optical_flow, quantization, segmentation, video
+  File "/home/chen/anaconda3/envs/galaxea_act/lib/python3.8/site-packages/torchvision/models/video/__init__.py", line 1, in <module>
+    from .mvit import *
+  File "/home/chen/anaconda3/envs/galaxea_act/lib/python3.8/site-packages/torchvision/models/video/mvit.py", line 28, in <module>
+    class MSBlockConfig:
+  File "/home/chen/anaconda3/envs/galaxea_act/lib/python3.8/dataclasses.py", line 1019, in dataclass
+    return wrap(cls)
+  File "/home/chen/anaconda3/envs/galaxea_act/lib/python3.8/dataclasses.py", line 1011, in wrap
+    return _process_class(cls, init, repr, eq, order, unsafe_hash, frozen)
+  File "/home/chen/anaconda3/envs/galaxea_act/lib/python3.8/dataclasses.py", line 925, in _process_class
+    _init_fn(flds,
+  File "/home/chen/anaconda3/envs/galaxea_act/lib/python3.8/dataclasses.py", line 529, in _init_fn
+    return _create_fn('__init__',
+  File "/home/chen/anaconda3/envs/galaxea_act/lib/python3.8/dataclasses.py", line 399, in _create_fn
+    return ns['__create_fn__'](**locals)
+KeyboardInterrupt
+[45 29 43 61 34 33 31 40 26 62 22  2 11 28 54  4 10 35 52 46 30  7 14 27
+ 63 55 41 42 58 18 60 32 15  5 16 20 56  8 13 25 37 17 48 51 57 38  1 12
+ 49 24  6 23 36 50 21 19  9 39 59  3  0 53 47 44] [45 29 43 61 34 33 31 40 26 62 22  2 11 28 54  4 10 35 52 46 30  7 14 27
+ 63 55 41 42 58 18 60 32 15  5 16 20 56  8 13 25 37 17 48 51 57 38  1 12
+ 49 24  6 23 36 50 21 19  9 39 59  3  0 53 47 44]
+Traceback (most recent call last):
+  File "train.py", line 209, in <module>
+    main(vars(parser.parse_args()))
+  File "train.py", line 47, in main
+    train_dataloader, val_dataloader, stats, is_sim = load_data(dataset_dir, num_episodes, args_dict['chunk_size'], 
+  File "/home/chen/ACT/galaxea_act/galaxea_act/dataset/episodic_dataset.py", line 284, in load_data
+    norm_stats = get_norm_stats_galaxea(dataset_dir,tf_representation, arm_type, with_torso, with_chassis)
+  File "/home/chen/ACT/galaxea_act/galaxea_act/dataset/episodic_dataset.py", line 245, in get_norm_stats_galaxea
+    action = generate_arm_feature_helper(trial, arm_type, True, tf_representation == "9d",with_torso=with_torso, with_chassis=with_chassis)
+  File "/home/chen/ACT/galaxea_act/galaxea_act/dataset/episodic_dataset.py", line 45, in generate_arm_feature_helper
+    feature_vector = utlis.transform_to_9d_batch(trial[pose_name], trial[gripper_name])
+  File "h5py/_objects.pyx", line 54, in h5py._objects.with_phil.wrapper
+  File "h5py/_objects.pyx", line 55, in h5py._objects.with_phil.wrapper
+  File "/home/chen/anaconda3/envs/galaxea_act/lib/python3.8/site-packages/h5py/_hl/group.py", line 357, in __getitem__
+    oid = h5o.open(self.id, self._e(name), lapl=self._lapl)
+  File "h5py/_objects.pyx", line 54, in h5py._objects.with_phil.wrapper
+  File "h5py/_objects.pyx", line 55, in h5py._objects.with_phil.wrapper
+  File "h5py/h5o.pyx", line 241, in h5py.h5o.open
+  File "h5py/h5i.pyx", line 43, in h5py.h5i.wrap_identifier
+  File "<frozen importlib._bootstrap>", line 389, in parent
+KeyboardInterrupt
