@@ -22,6 +22,7 @@ class BackboneParams:
     position_embedding: str = "sine"  # Type of positional embedding to use on top of the image features
     hidden_dim: int = 256  # Size of the embeddings (dimension of the transformer), for position embedding
 
+
 @dataclass
 class InferRosNodeParam:
     msg_time_max_diff:float = 0.1  # 不同消息之间最大能容忍的时间差，单位为秒。超过这个时间差的话，目前只会抛出报警

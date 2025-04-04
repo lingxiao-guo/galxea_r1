@@ -32,10 +32,10 @@ CAMERA_DEPTH_TOPIC = "/aligned_depth_to_color/image_raw"
 
 GRIPPER_COMMAND_TOPIC = "/motion_control/position_control_gripper"
 ARM_EE_COMMAND_TOPIC = "/motion_target/target_pose_arm"
-ARM_JOINT_COMMAND_TOPIC = "/motion_target/target_joint_state_arm"
+ARM_JOINT_COMMAND_TOPIC = "/motion_control/control_arm" 
 ARM_JOINT_STATES_TOPIC = "/hdas/feedback_arm"
 ARM_GRIPPER_TOPIC = "/hdas/feedback_gripper"
-ARM_POSE_TOPIC = "/motion_control/pose_ee_arm"
+ARM_POSE_TOPIC = "/relaxed_ik/motion_control/pose_ee_arm"
 LEFT_ARM_SUFFIX = "_left"
 RIGHT_ARM_SUFFIX = "_right"
 

@@ -15,7 +15,7 @@ ARM_EE_COMMAND_TOPIC = "/motion_target/target_pose_arm"
 ARM_JOINT_COMMAND_TOPIC = "/hdas/feedback_arm" #"/motion_target/target_joint_state_arm"
 ARM_JOINT_STATES_TOPIC = "/hdas/feedback_arm"
 ARM_GRIPPER_TOPIC = "/hdas/feedback_gripper"
-ARM_POSE_TOPIC = "/motion_control/pose_ee_arm"
+ARM_POSE_TOPIC = "/relaxed_ik/motion_control/pose_ee_arm"
 LEFT_ARM_SUFFIX = "_left"
 RIGHT_ARM_SUFFIX = "_right"
 
@@ -68,8 +68,8 @@ class ArmPostProcessor(object):
         data_dict = {}
         for target_topic in [ARM_JOINT_STATES_TOPIC + LEFT_ARM_SUFFIX, ARM_JOINT_STATES_TOPIC + RIGHT_ARM_SUFFIX]:
             # hardcode for single arm
-            timestamps, joint_positions, joint_velocities = self.load_joint_state(messages[ARM_JOINT_STATES_TOPIC + LEFT_ARM_SUFFIX])
-            # timestamps, joint_positions, joint_velocities = self.load_joint_state(messages[target_topic])
+            # timestamps, joint_positions, joint_velocities = self.load_joint_state(messages[ARM_JOINT_STATES_TOPIC + LEFT_ARM_SUFFIX])
+            timestamps, joint_positions, joint_velocities = self.load_joint_state(messages[target_topic])
             interpolated_joints = utlis.interpolate_1d(reference_timestamps, timestamps, joint_positions)
             interpolated_velocities = utlis.interpolate_1d(reference_timestamps, timestamps, joint_velocities)
             arm_prefix = "left" if "left" in target_topic else "right"
@@ -82,8 +82,8 @@ class ArmPostProcessor(object):
         data_dict = {}
         for target_topic in [ARM_GRIPPER_TOPIC + LEFT_ARM_SUFFIX, ARM_GRIPPER_TOPIC + RIGHT_ARM_SUFFIX]:
             # hardcode for single arm
-            timestamps, joint_positions, joint_velocities = self.load_joint_state(messages[ARM_GRIPPER_TOPIC + LEFT_ARM_SUFFIX])
-            # timestamps, joint_positions, joint_velocities = self.load_joint_state(messages[target_topic])
+            # timestamps, joint_positions, joint_velocities = self.load_joint_state(messages[ARM_GRIPPER_TOPIC + LEFT_ARM_SUFFIX])
+            timestamps, joint_positions, joint_velocities = self.load_joint_state(messages[target_topic])
             interpolated_joints = utlis.interpolate_1d(reference_timestamps, timestamps, joint_positions)
             arm_prefix = "left" if "left" in target_topic else "right"
             data_dict[f"/upper_body_observations/{arm_prefix}_arm_gripper_position"] = interpolated_joints
@@ -129,7 +129,7 @@ class ArmPostProcessor(object):
             transform_dict[key] = utlis.interpolate_transform(reference_timestamps, timestamp_dict[key], transform_dict[key])
         
         # hardcode for single arm
-        transform_dict['/upper_body_observations/right_arm_ee_pose'] = transform_dict['/upper_body_observations/left_arm_ee_pose']
+        # transform_dict['/upper_body_observations/right_arm_ee_pose'] = transform_dict['/upper_body_observations/left_arm_ee_pose']
         
         data_dict_list = utlis.dict_to_dict_list(transform_dict, index_array)
         return data_dict_list
@@ -139,7 +139,7 @@ class ArmPostProcessor(object):
         if self.task_space_cmd:
             for target_topic in [ARM_EE_COMMAND_TOPIC + LEFT_ARM_SUFFIX, ARM_EE_COMMAND_TOPIC + RIGHT_ARM_SUFFIX]:
                 # hardcode for single arm
-                timestamps_ee, task_space_cmd_values = self.load_arm_ee_command(messages[ARM_EE_COMMAND_TOPIC + LEFT_ARM_SUFFIX])
+                timestamps_ee, task_space_cmd_values = self.load_arm_ee_command(messages[target_topic])
                 if len(task_space_cmd_values) > 0:
                     task_space_cmd_values = utlis.interpolate_transform(reference_timestamps, timestamps_ee, task_space_cmd_values)
                 arm_prefix = "left" if "left" in target_topic else "right"
@@ -148,8 +148,8 @@ class ArmPostProcessor(object):
         else:
             for target_topic in [ARM_JOINT_COMMAND_TOPIC + LEFT_ARM_SUFFIX, ARM_JOINT_COMMAND_TOPIC + RIGHT_ARM_SUFFIX]:
                 # hardcode for single arm
-                timestamps_joint, joint_space_cmd_values,_ = self.load_joint_state(messages[ARM_JOINT_COMMAND_TOPIC + LEFT_ARM_SUFFIX])
-                # timestamps_joint, joint_space_cmd_values,_ = self.load_joint_state(messages[target_topic])
+                # timestamps_joint, joint_space_cmd_values,_ = self.load_joint_state(messages[ARM_JOINT_COMMAND_TOPIC + LEFT_ARM_SUFFIX])
+                timestamps_joint, joint_space_cmd_values,_ = self.load_joint_command(messages[target_topic])
                 if len(joint_space_cmd_values) > 0:
                     joint_space_cmd_values = utlis.interpolate_1d(reference_timestamps, timestamps_joint, joint_space_cmd_values)
                 arm_prefix = "left" if "left" in target_topic else "right"
@@ -157,8 +157,8 @@ class ArmPostProcessor(object):
                 data_dict[f"/upper_body_action_dict/{arm_prefix}_arm_joint_position_cmd"] = joint_space_cmd_values[:, 0:6]
         for target_topic in [GRIPPER_COMMAND_TOPIC + LEFT_ARM_SUFFIX, GRIPPER_COMMAND_TOPIC + RIGHT_ARM_SUFFIX]:
             # hardcode for single arm
-            timestamps_gripper, gripper_cmd = self.load_gripper_command(messages[GRIPPER_COMMAND_TOPIC + LEFT_ARM_SUFFIX])
-            # timestamps_gripper, gripper_cmd = self.load_gripper_command(messages[target_topic])
+            # timestamps_gripper, gripper_cmd = self.load_gripper_command(messages[GRIPPER_COMMAND_TOPIC + LEFT_ARM_SUFFIX])
+            timestamps_gripper, gripper_cmd = self.load_gripper_command(messages[target_topic])
             if len(gripper_cmd) > 0:
                 gripper_cmd = utlis.interpolate_1d(reference_timestamps, timestamps_gripper, gripper_cmd)
             arm_prefix = "left" if "left" in target_topic else "right"
@@ -174,6 +174,20 @@ class ArmPostProcessor(object):
             timestamps.append(t.to_sec())
             positions.append(list(msg.position))
             velocities.append(list(msg.velocity))
+        utlis.frequency_helper(timestamps, "joint_state_topic", self.logger)
+        timestamps = np.array(timestamps)
+        positions = np.array(positions)
+        velocities = np.array(velocities)
+        return timestamps, positions, velocities
+    
+    def load_joint_command(self, messages):
+        timestamps = []
+        positions = []
+        velocities = []
+        for msg, t in messages:
+            timestamps.append(t.to_sec())
+            positions.append(list(msg.p_des))
+            velocities.append(list(msg.v_des))
         utlis.frequency_helper(timestamps, "joint_state_topic", self.logger)
         timestamps = np.array(timestamps)
         positions = np.array(positions)

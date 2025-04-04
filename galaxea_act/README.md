@@ -14,9 +14,9 @@ Run `bash install.sh` for creating conda environment and installing dependencies
 常见处理命令[对DP，chunk_size应该为16]
 ```
 # joint angles
-python galaxea_act/train.py --dataset_dir ../data/${TASK_NAME}/h5/clean  --ckpt_dir checkpoints/${POLICY_CLASS}/${TASK_NAME} --policy_class ACT --kl_weight 10 --chunk_size 15 --hidden_dim 512 --batch_size 128 --dim_feedforward 3200 --seed 0 --temporal_agg --num_epochs 200 --lr 5e-5 --task_name ${TASK_NAME} --run_name ${TASK_NAME}  --arm_type 2 --tf joint_angles 
+python galaxea_act/train.py --dataset_dir ../data/${TASK_NAME}/joint_h5/clean  --ckpt_dir checkpoints/${POLICY_CLASS}/${TASK_NAME}_joint --policy_class ACT --kl_weight 10 --chunk_size 16 --hidden_dim 512 --batch_size 40--dim_feedforward 3200 --seed 0 --temporal_agg --num_epochs 400 --lr 5e-5 --task_name 1 --run_name 1  --arm_type 2 --tf joint_angles 
 # ee pose
-python galaxea_act/train.py --dataset_dir ../data/${TASK_NAME}/h5/clean  --ckpt_dir checkpoints/${POLICY_CLASS}/${TASK_NAME} --policy_class ACT --kl_weight 10 --chunk_size 15 --hidden_dim 512 --batch_size 128 --dim_feedforward 3200 --seed 0 --temporal_agg --num_epochs 200 --lr 5e-5 --task_name ${TASK_NAME} --run_name ${TASK_NAME}  --arm_type 2 --tf 9d
+python galaxea_act/train.py --dataset_dir ../data/${TASK_NAME}/h5/clean  --ckpt_dir checkpoints/${POLICY_CLASS}/${TASK_NAME} --policy_class ACT --kl_weight 10 --chunk_size 16 --hidden_dim 512 --batch_size 40 --dim_feedforward 3200 --seed 0 --temporal_agg --num_epochs 400 --lr 5e-5 --task_name ${TASK_NAME} --run_name ${TASK_NAME}  --arm_type 2 --tf 9d
 ```
 对DP，建议可以把num_epochs搞到400
 # 实机测试

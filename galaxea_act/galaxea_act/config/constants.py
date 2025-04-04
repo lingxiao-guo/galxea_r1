@@ -2,9 +2,12 @@
 TASK_NUM = 22 
 ## change this to train with less cameras
 
-EPISODE_CUTOFF = 2
+EPISODE_CUTOFF = 50
 IMAGE_WIDTH = 320
 IMAGE_HEIGHT = 240
+
+CROP_WIDTH = 160
+CROP_HEIGHT = 120
 
 ## text embeddings 
 ## obtained from https://colab.research.google.com/github/huggingface/blog/blob/main/notebooks/80_getting_started_with_embeddings.ipynb#scrollTo=NL5TFD1ukn7W

@@ -6,7 +6,9 @@ import torch
 import torchvision
 from torch import nn
 from torchvision.models._utils import IntermediateLayerGetter
+import torchvision.transforms as transforms
 from typing import Any, Dict, List, Mapping, Optional
+from collections import OrderedDict
 
 from galaxea_act.models.detr.misc import NestedTensor, is_main_process
 from galaxea_act.models.detr.resnet_film import resnet18 as resnet18_film
@@ -86,12 +88,29 @@ class Backbone(BackboneBase):
                  train_backbone: bool,
                  return_interm_layers: bool,
                  dilation: bool):
+        
         backbone = getattr(torchvision.models, name)(
             replace_stride_with_dilation=[False, False, dilation],
             pretrained=is_main_process(), norm_layer=FrozenBatchNorm2d) # pretrained # TODO do we want frozen batch_norm??
         num_channels = 512 if name in ('resnet18', 'resnet34') else 2048
         super().__init__(backbone, train_backbone, num_channels, return_interm_layers)
+
+
+class DINOv2BackBone(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.body = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14')
+        self.body.eval()
+        self.num_channels = 384
+        self.transform = transforms.Compose([transforms.Resize((252, 336)), ])
     
+    @torch.no_grad()
+    def forward(self, tensor):
+        tensor = self.transform(tensor)
+        xs = self.body.forward_features(tensor)["x_norm_patchtokens"]
+        od = OrderedDict()
+        od["0"] = xs.reshape(xs.shape[0], 24, 18, 384).permute(0, 3, 2, 1)
+        return od
 
 # ====  ResNet Backbone ====
 class ResNetFilmBackbone(nn.Module):

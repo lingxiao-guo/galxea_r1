@@ -31,15 +31,20 @@ class ACTPolicy(nn.Module):
         qpos_dim=args["qpos_dim"]
         action_dim=args["action_dim"]
         use_onehot=args["use_onehot"]
-
+        use_dinov2 = args["backbone"] == "dinov2"
         #model set up
         backbones = []
         use_film = False  # todo(dongke) 默认不启用film方法
         if use_film:
             backbone = build_film_backbone(backbone_param)
+        elif use_dinov2:
+            backbone = build_dinov2_backbone(backbone_param)
         else:
             backbone = build_backbone(backbone_param)
         backbones.append(backbone)
+        if 'upper_body_observations/depth_head' in camera_names:
+            depth_backbone = build_backbone(backbone_param)
+            backbones.append(depth_backbone)
         # to do: (bye) transformer need to modify
         transformer= build_transformer(transformer_param)
         self.transformer = transformer
@@ -69,6 +74,7 @@ class ACTPolicy(nn.Module):
         env_state = None
         # hardcode for single task
         task_emb = None
+        
         if actions is not None: # training time
             actions = actions[:, :self.model.chunk_size]
             is_pad = is_pad[:, :self.model.chunk_size]
@@ -98,7 +104,22 @@ class ACTPolicy(nn.Module):
                 a_hat, _, (_, _) = self.model(qpos, image, env_state) # no action, sample from prior
 
             return a_hat
-        #normalize 
+        
+    def set_mask_rate(self, rate):
+        pass
+
+    def get_samples(self, data, num_samples):
+        image, qpos, _, _ , task_emb = data
+        env_state = None
+        # hardcode for single task
+        task_emb = None
+
+        if task_emb is not None:
+            a_hat, _, (_, _) = self.model.get_samples(qpos, image, env_state,task_emb=task_emb,num_samples=num_samples) # no action, sample from prior
+        else:
+            a_hat, _, (_, _) = self.model.get_samples(qpos, image, env_state,num_samples=num_samples) # no action, sample from prior
+
+        return a_hat
     
     
 

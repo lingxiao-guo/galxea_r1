@@ -26,6 +26,9 @@ def get_sinusoid_encoding_table(n_position, d_hid):
 
     return torch.FloatTensor(sinusoid_table).unsqueeze(0)
 
+def reparametrize_n(mu, std, n):
+    eps = Variable(std.data.new(n, *std.size()).normal_())
+    return mu.unsqueeze(0) + std.unsqueeze(0) * eps
 
 class DETRVAE(nn.Module):
     """ This is the DETR module that performs object detection """
@@ -61,6 +64,8 @@ class DETRVAE(nn.Module):
             self.input_proj = nn.Conv2d(backbones[0].num_channels, hidden_dim, kernel_size=1)
             self.backbones = nn.ModuleList(backbones)
             self.input_proj_robot_state = nn.Linear(self.qpos_dim, hidden_dim) 
+            if 'upper_body_observations/depth_head' in camera_names:
+                self.depth_input_proj = nn.Conv2d(backbones[1].num_channels, hidden_dim, kernel_size=1)                   
         else:
             # input_dim = 14 + 7 # robot_state + env_state
             self.input_proj_robot_state = nn.Linear(self.qpos_dim, hidden_dim) ## 7 for qpos  todo(dongke) 此处robot state的数量是hard code
@@ -146,8 +151,16 @@ class DETRVAE(nn.Module):
             for cam_id, cam_name in enumerate(self.camera_names):
                 if self.use_film:
                     features, pos = self.backbones[0](image[:, cam_id], task_emb=task_emb) # HARDCODED
+                elif cam_name == 'upper_body_observations/depth_head':
+                    features, pos = self.backbones[1](image[:, cam_id])
+                    features = features[0] # take the last layer feature
+                    pos = pos[0]
+                    depth_feature = self.depth_input_proj(features)
+                    all_cam_features.append(depth_feature)
+                    all_cam_pos.append(pos)
+                    continue
                 else:
-                    features, pos = self.backbones[0](image[:, cam_id]) # HARDCODED
+                    features, pos = self.backbones[0](image[:, cam_id]) # HARDCODED                   
                 features = features[0] # take the last layer feature
                 pos = pos[0]
                 all_cam_features.append(self.input_proj(features))
@@ -174,6 +187,65 @@ class DETRVAE(nn.Module):
         a_hat = self.action_head(hs)
         is_pad_hat = self.is_pad_head(hs)
         return a_hat, is_pad_hat, [mu, logvar]
+    
+    def get_samples(self, qpos, image, env_state, actions=None, is_pad=None, task_emb=None,num_samples=10):
+        """
+        qpos: batch, qpos_dim
+        image: batch, num_cam, channel, height, width
+        env_state: None
+        actions: batch, seq, action_dim
+        """
+        is_training = actions is not None # train or val
+        bs, _ = qpos.shape
+        ### Obtain latent z from action sequence
+        mu = logvar = torch.zeros([bs, self.latent_dim], dtype=torch.float32).to(qpos.device)
+        latent_sample = reparametrize_n(mu, logvar.div(2).exp(), num_samples)
+        latent_sample = latent_sample.reshape(num_samples*bs, self.latent_dim)
+        latent_input = self.latent_out_proj(latent_sample)
+
+        ## for multi-task embedding
+        if task_emb is not None:
+            task_emb = self.proj_text_emb(task_emb) ## project task emb to 512 dim
+
+        if self.backbones is not None:
+            # Image observation features and position embeddings
+            all_cam_features = []
+            all_cam_pos = []
+            for cam_id, cam_name in enumerate(self.camera_names):
+                if self.use_film:
+                    features, pos = self.backbones[0](image[:, cam_id], task_emb=task_emb) # HARDCODED
+                else:
+                    features, pos = self.backbones[0](image[:, cam_id]) # HARDCODED                   
+                features = features[0] # take the last layer feature
+                pos = pos[0]
+                all_cam_features.append(self.input_proj(features))
+                all_cam_pos.append(pos)
+            # proprioception features
+            proprio_input = self.input_proj_robot_state(qpos)
+            proprio_input = torch.repeat_interleave(proprio_input, num_samples, dim=0)
+            # fold camera dimension into width dimension
+            src = torch.cat(all_cam_features, axis=3)
+            pos = torch.cat(all_cam_pos, axis=3)
+            src = torch.repeat_interleave(src, num_samples, dim=0)
+            
+            if self.multi_task:
+                hs = self.transformer(src, None, self.query_embed.weight, pos, latent_input, proprio_input, self.additional_pos_embed.weight,task_emb=task_emb)[0]
+            else:
+                hs = self.transformer(src, None, self.query_embed.weight, pos, latent_input, proprio_input, self.additional_pos_embed.weight,task_emb=None)[0]
+        else:  # todo(dongke) 这个版本有用到吗？
+            qpos = self.input_proj_robot_state(qpos)
+            env_state = self.input_proj_env_state(env_state)
+            transformer_input = torch.cat([qpos, env_state], axis=1) # seq length = 2
+
+            if self.multi_task:
+                hs = self.transformer(transformer_input, None, self.query_embed.weight, self.pos.weight,task_emb=task_emb)[0]
+            else:            
+                hs = self.transformer(transformer_input, None, self.query_embed.weight, self.pos.weight,task_emb=None)[0]
+        
+        a_hat = self.action_head(hs)
+        a_hat = a_hat.reshape(num_samples, bs, -1, 26)
+        is_pad_hat = self.is_pad_head(hs)
+        return a_hat, is_pad_hat, [mu, logvar]
 
 
 def mlp(input_dim, hidden_dim, output_dim, hidden_depth):
@@ -188,7 +260,7 @@ def mlp(input_dim, hidden_dim, output_dim, hidden_depth):
     return trunk
 
 class CNNMLP(nn.Module):
-    def __init__(self, backbones, state_dim, camera_names):
+    def __init__(self, backbones, state_dim, camera_names, use_dinov2):
         """Initializes the model.
         Parameters:
             backbones: torch module of the backbone to be used. See backbone.py
@@ -202,7 +274,7 @@ class CNNMLP(nn.Module):
         self.camera_names = camera_names
         self.action_head = nn.Linear(1000, state_dim)  # TODO add more
         self.proj_head = nn.Linear(768, 64)
-        if backbones is not None:
+        if not use_dinov2:
             self.backbones = nn.ModuleList(backbones)
             backbone_down_projs = []
             for backbone in backbones:
@@ -219,8 +291,26 @@ class CNNMLP(nn.Module):
                 input_dim=mlp_in_dim, hidden_dim=1024, output_dim=26, hidden_depth=2
             )
         else:
-            raise NotImplementedError
+            self.backbones = nn.ModuleList(backbones)
+            backbone_down_projs = []
+            for backbone in backbones:
+                down_proj = nn.Sequential(
+                    nn.Conv2d(backbone.num_channels, 256, kernel_size=3,stride=1, padding=1),
+                    nn.ELU(),
+                    nn.MaxPool2d(kernel_size=2, stride=2),
+                    nn.Conv2d(256, 128, kernel_size=3,stride=1, padding=1),
+                    nn.ELU(),
+                    nn.MaxPool2d(kernel_size=2, stride=2),
+                    nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1),
+                    nn.ELU(),
+                    nn.AdaptiveAvgPool2d((1, 1))
+                    )
+                
+                backbone_down_projs.append(down_proj)
+            self.backbone_down_projs = nn.ModuleList(backbone_down_projs)
 
+            
+            
     def forward(self, qpos, image, env_state, actions=None):
         """
         qpos: batch, qpos_dim

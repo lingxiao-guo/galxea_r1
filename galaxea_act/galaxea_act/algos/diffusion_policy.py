@@ -22,16 +22,24 @@ class DiffusionPolicy(nn.Module):
     def __init__(self, args_override):
         super().__init__()
         cfg = OmegaConf.load(args_override['diffusion_policy_cfg'])
+        cfg.policy.horizon = args_override['chunk_size']
+        print('diffusion horizon:',cfg.policy.horizon)
         encoder, _ = build_CNNMLP_model_and_optimizer(args_override)
         self.model: DiffusionUnetHybridImagePolicy = hydra.utils.instantiate(cfg.policy,encoder=encoder)
         self.optimizer = hydra.utils.instantiate(
             cfg.optimizer, params=self.model.parameters()
         )
+        self.mask_rate = 1
 
         
 
     def forward(self, data):
         image, qpos, actions, is_pad , task_emb = data
+        # mask gripper proprio to prevent overfit
+        # mask_num = int(qpos.shape[0] * self.mask_rate)
+        # qpos[:,[12,25]] = 0
+        # qpos[:mask_num] = 0
+        # qpos[:mask_num] = 0
         env_state = None
         if actions is not None:  # training time
             actions = actions[:, : self.model.horizon]
@@ -50,13 +58,16 @@ class DiffusionPolicy(nn.Module):
             obs_dict = {'qpos':qpos,'image':image}
             result = self.model.predict_action(obs_dict)
             return result['action_pred']
+    
+    def set_mask_rate(self, rate):
+        self.mask_rate = 1-rate
 
     def configure_optimizers(self):
         return self.optimizer
     
-    def get_samples(self, qpos, image, num_samples=10, actions=None, is_pad=None):
+    def get_samples(self, data, num_samples=10, actions=None, is_pad=None):
         env_state = None
-        
+        image, qpos, _, _ , task_emb = data
         image = torch.tile(image, (num_samples,1,1,1,1))
         qpos = torch.tile(qpos, (num_samples, 1))
         # inference time        

@@ -4,7 +4,7 @@ import argparse
 from torch import nn
 from galaxea_act.config.params import *
 from galaxea_act.models.detr.detr_vae import DETRVAE, CNNMLP
-from galaxea_act.models.detr.backbone import Backbone, Joiner, ResNetFilmBackbone
+from galaxea_act.models.detr.backbone import Backbone, Joiner, ResNetFilmBackbone, DINOv2BackBone
 from galaxea_act.models.detr.position_encoding import PositionEmbeddingSine, PositionEmbeddingLearned
 from galaxea_act.models.detr.transformer import Transformer, TransformerEncoder, TransformerEncoderLayer
 
@@ -52,6 +52,13 @@ def build_backbone(backbone_param: BackboneParams):
     model.num_channels = backbone.num_channels
     return model
 
+def build_dinov2_backbone(backbone_param: BackboneParams):
+    print("Using DINOv2 Backbone...")
+    position_embedding = build_position_encoding(backbone_param.position_embedding, backbone_param.hidden_dim)
+    backbone = DINOv2BackBone()
+    model = Joiner(backbone, position_embedding)
+    model.num_channels = backbone.num_channels
+    return model
 
 def build_film_backbone(backbone_param: BackboneParams):
     position_embedding = build_position_encoding(backbone_param.position_embedding, backbone_param.hidden_dim)
@@ -75,6 +82,10 @@ def build_act_model(transformer_param: TransformerParams, backbone_param: Backbo
     else:
         backbone = build_backbone(backbone_param)
     backbones.append(backbone)
+
+    if 'upper_body_observations/depth_head' in camera_names:
+        depth_backbone = build_backbone(backbone_param)
+        backbones.append(depth_backbone)
 
     transformer = build_transformer(transformer_param)
 
@@ -129,8 +140,6 @@ def build_ACT_model_and_optimizer(args):
     return model, optimizer
 
 
-def build_CNNMLP_model(args, backbone_param, qpos_dim):
-    return build_cnnmlp(args, backbone_param, qpos_dim)
 
 def build_CNNMLP_model_and_optimizer(args):
     
@@ -138,7 +147,7 @@ def build_CNNMLP_model_and_optimizer(args):
         args["backbone"], args["lr_backbone"], args["dilation"], args["masks"],
         args["position_embedding"], args["hidden_dim"]
     )
-    model = build_CNNMLP_model(args, backbone_param, args["qpos_dim"])
+    model = build_cnnmlp(args, backbone_param, args["qpos_dim"], args["backbone"]=='dinov2')
     model.cuda()
 
     param_dicts = [
@@ -164,20 +173,24 @@ def build_CNNMLP_model_and_optimizer(args):
 
     return model, optimizer
 
-def build_cnnmlp(args, backbone_param: BackboneParams, qpos_dim):
+def build_cnnmlp(args, backbone_param: BackboneParams, qpos_dim, use_dinov2):
     state_dim = qpos_dim  # TODO hardcode
     # From state
     # backbone = None # from state for now, no need for conv nets
     # From image
     backbones = []
     for _ in args["camera_names"]:
-        backbone = build_backbone(backbone_param)
+        if use_dinov2:
+            backbone = build_dinov2_backbone(backbone_param)
+        else:
+            backbone = build_backbone(backbone_param)
         backbones.append(backbone)
 
     model = CNNMLP(
         backbones,
         state_dim=state_dim,
         camera_names=args["camera_names"],
+        use_dinov2=use_dinov2,
     )
 
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
