@@ -12,10 +12,10 @@ from galaxea_act.config.params import *
 from galaxea_act.models.detr.model_builder import *
 
 from omegaconf import OmegaConf
-from diffusion_policy.policy.diffusion_unet_hybrid_image_policy import (
+from galaxea_act.diffusion_policy.policy.diffusion_unet_hybrid_image_policy import (
     DiffusionUnetHybridImagePolicy,
 )
-from diffusion_policy.model.common.normalizer import SingleFieldLinearNormalizer
+from galaxea_act.diffusion_policy.model.common.normalizer import SingleFieldLinearNormalizer
 
 
 class DiffusionPolicy(nn.Module):
@@ -36,10 +36,11 @@ class DiffusionPolicy(nn.Module):
     def forward(self, data):
         image, qpos, actions, is_pad , task_emb = data
         # mask gripper proprio to prevent overfit
+        # hardcode
+        # self.mask_rate = 0.75
         # mask_num = int(qpos.shape[0] * self.mask_rate)
-        # qpos[:,[12,25]] = 0
-        # qpos[:mask_num] = 0
-        # qpos[:mask_num] = 0
+        # qpos[:] = 0
+        
         env_state = None
         if actions is not None:  # training time
             actions = actions[:, : self.model.horizon]

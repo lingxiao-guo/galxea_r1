@@ -16,6 +16,7 @@ pip install packaging
 pip install h5py
 pip install h5py_cache
 pip install gnupg
+pip install wandb
 pip install zarr
 pip install -e .
 # for diffusion policy

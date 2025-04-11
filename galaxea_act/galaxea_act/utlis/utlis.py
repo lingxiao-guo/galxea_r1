@@ -551,7 +551,7 @@ def hdbscan_with_custom_merge(entropy, dir, rollout_id, plot=True):
         cluster_points = X[initial_labels == label]
         
         # 判断当前簇的第二个特征的值是否全部小于 0
-        if  np.all(cluster_points[:, 1] < 1): # 0
+        if  np.all(cluster_points[:, 1] < 0): # 0
             refined_labels[initial_labels == label] = 0  # 合并到第 0 类
         else:
             refined_labels[initial_labels == label] = -1  # 合并到第 1 类

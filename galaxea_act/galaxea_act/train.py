@@ -62,7 +62,7 @@ def main(args_dict):
     
     # label
     if args_dict['label']:
-        ckpt_name = 'policy_epoch_399_seed_0.ckpt'
+        ckpt_name = 'policy_epoch_99_seed_0.ckpt'
         print(f"Label entropy using {ckpt_dir}/{ckpt_name}")
         label_entropy(args_dict, ckpt_name)
         exit()
@@ -83,7 +83,7 @@ def main(args_dict):
                                                                 batch_size_train, batch_size_val, camera_names, 
                                                                 tf_representation, arm_type, with_torso, with_chassis,
                                                                 image_overlay=image_overlay,speedup=args_dict['speedup'],
-                                                                teacher_action = args_dict['teacher_action'],use_one_hot_task=use_one_hot_task)
+                                                                use_one_hot_task=use_one_hot_task)
     
     # save dataset stats
     if not os.path.isdir(ckpt_dir):
@@ -425,7 +425,7 @@ def train_bc(train_dataloader, val_dataloader, config, policy , optimizer, loade
                 #     self.run.log({"train/render": wandb.Image(canvas, caption=f"step: {step}")})
 
         # save checkpoint and eval
-        if (epoch+1) % 50 == 0 and local_rank == 0:
+        if (epoch+1) % 20 == 0 and local_rank == 0:
             #save checkpoint or .pth(optinal)
             ckpt_path = os.path.join(ckpt_dir, f'policy_epoch_{epoch}_seed_{seed}.ckpt')
             torch.save(policy.state_dict(), ckpt_path)

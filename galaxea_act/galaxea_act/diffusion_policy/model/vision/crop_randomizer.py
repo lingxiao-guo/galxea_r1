@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torchvision.transforms.functional as ttf
-import diffusion_policy.model.common.tensor_util as tu
+import galaxea_act.diffusion_policy.model.common.tensor_util as tu
 
 
 class CropRandomizer(nn.Module):

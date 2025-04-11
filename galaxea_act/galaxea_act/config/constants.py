@@ -2,7 +2,7 @@
 TASK_NUM = 22 
 ## change this to train with less cameras
 
-EPISODE_CUTOFF = 50
+EPISODE_CUTOFF = 2
 IMAGE_WIDTH = 320
 IMAGE_HEIGHT = 240
 

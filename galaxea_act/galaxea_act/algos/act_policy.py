@@ -68,10 +68,16 @@ class ACTPolicy(nn.Module):
         self.kl_weight = args_override['kl_weight']
         print(f'KL Weight {self.kl_weight}')
         self.tf_type = args_override['tf']
+        self.mask_rate = 1
     
     def forward(self, data):
         image, qpos, actions, is_pad , task_emb = data
         env_state = None
+        # hardcode
+        self.mask_rate = 0.75
+        mask_num = int(qpos.shape[0] * self.mask_rate)
+        # qpos[:mask_num] = 0
+        # qpos[:mask_num] = 0
         # hardcode for single task
         task_emb = None
         

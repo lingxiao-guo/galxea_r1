@@ -1,7 +1,7 @@
 from typing import Dict
 import torch
 import torch.nn as nn
-from diffusion_policy.model.common.module_attr_mixin import ModuleAttrMixin
+from galaxea_act.diffusion_policy.model.common.module_attr_mixin import ModuleAttrMixin
 
 
 
