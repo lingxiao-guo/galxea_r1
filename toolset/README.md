@@ -14,4 +14,4 @@ python3 scripts/split_training_set.py /data/operation/processed/00054
 清理数据，filter掉静止帧：
 cd ../data
 对ee pose control
-python filter_h5.py ${TASK_NAME}/h5/00001
+python scripts/filter_h5.py ../data/kitchen/h5/00001
