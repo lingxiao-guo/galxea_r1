@@ -67,11 +67,7 @@ def main(args_dict):
         label_entropy(args_dict, ckpt_name)
         exit()
 
-    wandb_logger = wandb.init(
-        project=args_dict["task_name"],
-        group="ACT",  # all runs for the experiment in one group
-        config={'dataset_dir': args_dict["dataset_dir"], 'ckpt_dir': args_dict["ckpt_dir"]}
-    ) if local_rank == 0 else None
+    wandb_logger =  None
     
 
     if policy_class == 'ACT':
@@ -186,11 +182,12 @@ def label_entropy(config, ckpt_name, save_episode=True):
     num_samples = 10
     all_labels = []
     for rollout_id in range(num_rollouts):
+        rollout_id=18
         all_left_qpos = trials[rollout_id]["upper_body_observations/left_arm_ee_pose"][()]
         max_timesteps, state_dim = all_left_qpos.shape[0],26 # may increase for real-world tasks
         image_dict = dict()
            
-
+        
         ### evaluation loop
         if temporal_agg:
             all_time_actions = torch.zeros(
@@ -211,17 +208,19 @@ def label_entropy(config, ckpt_name, save_episode=True):
             for t in tqdm(range(0,max_timesteps-EPISODE_CUTOFF)):
                 raw_qpos = generate_arm_feature_helper(trials[rollout_id], arm_type, False, config["tf"] == "9d", t)
                 image_dict = dict()
+                origin_image_dict = dict()
                 for cam_name in camera_names:
                     origin_image_bytes = trials[rollout_id][cam_name][t]
                     np_array = np.frombuffer(origin_image_bytes, np.uint8)
                     image = cv2.imdecode(np_array, cv2.IMREAD_UNCHANGED)                    
                     img = cv2.resize(image, (IMAGE_WIDTH, IMAGE_HEIGHT))
                     image_dict[cam_name] = img
+                    origin_image_dict[cam_name] = cv2.resize(image, (480, IMAGE_HEIGHT))
                 all_cam_images = []
                 for cam_name in camera_names:
                     all_cam_images.append(image_dict[cam_name])
                 obs = {}
-                obs['images'] = {'head':all_cam_images[0]}
+                obs['images'] = {'head':image}
                 all_cam_images = np.stack(all_cam_images, axis=0)
                 # construct observations
                 image_data = torch.from_numpy(all_cam_images).float()
@@ -296,8 +295,8 @@ def label_entropy(config, ckpt_name, save_episode=True):
                 entropy_numpy = np.array(traj_action_entropy[-1].cpu())
                 store_imgs = {}
                 for key, img in obs["images"].items():
-                    # img = put_text(img,t,position="bottom")                    
-                    store_imgs[key] = put_text(img,entropy_numpy)
+                    # img = put_text(img,'Entropy: '+str(entropy_numpy),position="bottom")                    
+                    store_imgs[key] = img
                 if "images" in obs:
                     image_list.append(store_imgs)
                 else:
@@ -315,8 +314,8 @@ def label_entropy(config, ckpt_name, save_episode=True):
         
     
         labels = hdbscan_with_custom_merge(actions_entropy_norm, ckpt_dir, rollout_id)
-
-        image_list = [{'head':put_text(image_list[i]['head'], str(int(labels[i])),  position='bottom')} for i in range(len(image_list))]
+        
+        image_list = [{'head':put_text(image_list[i]['head'], [str(int(labels[i])),traj_action_entropy[i]],font_size=1.2)} for i in range(len(image_list))]
         if save_episode :
             os.makedirs(os.path.join(ckpt_dir, f"label"),exist_ok=True)
             save_videos(
@@ -355,7 +354,7 @@ def label_entropy(config, ckpt_name, save_episode=True):
     rate = all_labels.count(0)/len(all_labels)
     print("precision rate: ", rate)
 
-
+ 
 
 def train_bc(train_dataloader, val_dataloader, config, policy , optimizer, loaded_epoch,local_rank, wandb_logger=None):
     # from time import time
@@ -425,7 +424,7 @@ def train_bc(train_dataloader, val_dataloader, config, policy , optimizer, loade
                 #     self.run.log({"train/render": wandb.Image(canvas, caption=f"step: {step}")})
 
         # save checkpoint and eval
-        if (epoch+1) % 20 == 0 and local_rank == 0:
+        if (epoch+1) % 50 == 0 and local_rank == 0:
             #save checkpoint or .pth(optinal)
             ckpt_path = os.path.join(ckpt_dir, f'policy_epoch_{epoch}_seed_{seed}.ckpt')
             torch.save(policy.state_dict(), ckpt_path)
@@ -492,6 +491,7 @@ def save_videos(video, fps, video_path=None):
         cam_names = list(video[0].keys())
         h, w, _ = video[0][cam_names[0]].shape
         w = w * len(cam_names)
+        print(h,w)
         out = cv2.VideoWriter(video_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
         for ts, image_dict in enumerate(video):
             images = []

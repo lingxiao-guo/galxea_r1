@@ -12,6 +12,5 @@ python3 scripts/h5_quaternion_regulation.py ../data/${TASK_NAME}/h5
 自动2：8划分测试，训练集指令：
 python3 scripts/split_training_set.py /data/operation/processed/00054
 清理数据，filter掉静止帧：
-cd ../data
 对ee pose control
-python scripts/filter_h5.py ../data/kitchen/h5/00001
+python scripts/filter_h5.py ../data/${TASK_NAME}/h5/00001

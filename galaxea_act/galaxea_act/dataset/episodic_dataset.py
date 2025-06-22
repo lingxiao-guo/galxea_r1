@@ -98,8 +98,8 @@ def generate_chassis_feature_helper(trial: h5py.File, batch_index:int=-1):
         return output_features[0]
 
 def downsample_action_with_labels(action, label):
-    low_v = 3
-    high_v = 6
+    low_v = 2
+    high_v = 4
     horizon, dim = action.shape
     current_action = action
     current_label = label
@@ -167,7 +167,7 @@ class EpisodicDatasetGalaxea(torch.utils.data.Dataset):
             action = generate_arm_feature_helper(trial, self.arm_type, True, self.tf_representation == "9d",with_torso=self.with_torso, with_chassis = self.with_chassis)
             original_action_shape = action.shape
             episode_len = original_action_shape[0] ## cutoff last few
-            print(episode_len)
+            
             _max_episode_len = max(_max_episode_len, episode_len)
         self._max_episode_len = _max_episode_len
         print('TOTAL TRIALS = num_episodes = ', len(self.trials), "max :", _max_episode_len)
@@ -179,7 +179,8 @@ class EpisodicDatasetGalaxea(torch.utils.data.Dataset):
         idx = idx // self._max_episode_len
         trial = self.trials[idx]
         task_emb = self.task_emb_per_trial[idx]
-        label = trial['labels']
+        # if self.speedup:
+        #    label = trial['labels']
         action = generate_arm_feature_helper(trial, self.arm_type, True, self.tf_representation == "9d",with_torso=self.with_torso, with_chassis = self.with_chassis)
         original_action_shape = action.shape
         episode_len = original_action_shape[0] ## cutoff last few
@@ -211,11 +212,10 @@ class EpisodicDatasetGalaxea(torch.utils.data.Dataset):
 
         # speedup:
         if self.speedup:
-            # action = action[::2]
-            label = label[max(0, start_ts - 1):].astype(np.float32)
-            action,_ = downsample_action_with_labels(action, label)
+            action = action[::2]
+            # label = label[max(0, start_ts - 1):].astype(np.float32)
+            # action,_ = downsample_action_with_labels(action, label)
             action_len = action.shape[0]
-
         padded_action = np.zeros((self.chunk_size, original_action_shape[1]), dtype=np.float32) 
         if action_len <= self.chunk_size:
             padded_action[:action_len] = action

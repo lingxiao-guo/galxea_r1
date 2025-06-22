@@ -255,18 +255,39 @@ class SaltAndPepperNoise:
 import cv2 
 def put_text(img, text, is_waypoint=False, font_size=1, thickness=2, position="top"):
     img = img.copy()
-    if position == "top":
-        p = (10, 30)
-    elif position == "bottom":
-        p = (10, img.shape[0] - 60)
+    img[:100,:290,:] = 0
+    p = (30,  40)
+    p_h = (30,  90)
     # put the frame number in the top left corner
+    color = (255, 255, 255)
+    if text[0] == '0':
+        tt = 'Precise'
+        color = (34, 139, 34)
+        thickness=2
+        font_size=1.2
+    elif text[0] == '1':
+        tt = "Causal"
+        color = (0, 0, 255)
+        thickness=2
+        font_size=1.2
+    
     img = cv2.putText(
         img,
-        str(text),
+        tt,
         p,
         cv2.FONT_HERSHEY_SIMPLEX,
         font_size,
-        (0, 255, 255),
+        color,
+        thickness,
+        cv2.LINE_AA,
+    )
+    img = cv2.putText(
+        img,
+        'Entropy: '+str(text[1])[:6],
+        p_h,
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        color,
         thickness,
         cv2.LINE_AA,
     )
@@ -425,7 +446,7 @@ class KDE():
 from sklearn.ensemble import IsolationForest
 import numpy as np
 
-def remove_outliers_isolation_forest(data, contamination=0.25): # for DP: contamination = 0.25; ACT: contamination = 0.1
+def remove_outliers_isolation_forest(data, contamination=0.1): # for DP: contamination = 0.25; ACT: contamination = 0.1
     model = IsolationForest(contamination=contamination)
     predictions = model.fit_predict(data.reshape(-1, 1))
     
@@ -472,7 +493,36 @@ def remove_outliers_isolation_forest(data, contamination=0.25): # for DP: contam
                 
     return data
 
+def get_refined_labels(entropy_norm):
+    # 获取数组长度
+    n = len(entropy_norm)
+    
+    # 如果数组为空，直接返回空数组
+    if n == 0:
+        return np.array([])
+    
+    # 计算第40%大的元素的索引
+    k = int(n * 0.4)
+    
+    # 对数组进行排序并找到第40%大的元素
+    sorted_indices = np.argsort(entropy_norm)
+    threshold = entropy_norm[sorted_indices[-k]]
+    
+    # 根据阈值生成 refined_labels
+    refined_labels = np.where(entropy_norm > threshold, -1, 0)
+    
+    return refined_labels
 
+import pandas as pd
+import seaborn as sns
+from matplotlib.colors import ListedColormap
+from matplotlib.collections import LineCollection
+COLOR_SCHEME = {
+    'muted': ('#7fbf7b', '#af8dc3'),      # 莫兰迪风格
+    'earth': ('#4d9221', '#c51b7d'),      # 自然色调（ColorBrewer推荐）
+    'pastel': ('#a6d854', '#fc8d62'),     # 柔和水彩风格
+    'professional': ('#2ca02c', '#d62728') # Tableau经典配色
+}
 def hdbscan_with_custom_merge(entropy, dir, rollout_id, plot=True):
     """
     使用HDBSCAN进行初步聚类，并根据规则进一步合并：
@@ -495,11 +545,17 @@ def hdbscan_with_custom_merge(entropy, dir, rollout_id, plot=True):
     # entropy_norm[entropy_norm>2] = 0 
     entropy_norm = remove_outliers_isolation_forest(entropy_norm)
     entropy_norm = (entropy_norm-np.mean(entropy_norm))/np.std(entropy_norm)
+    refined_labels = np.zeros_like(entropy_norm, dtype=int)
+    
+    # 找到 entropy_norm 大于 threshold 的位置，并将对应的 label 设置为 1
+    # refined_labels[entropy_norm > 0] = -1
+
+    # refined_labels = get_refined_labels(entropy_norm)
     indices = np.arange(len(entropy_norm))
     indices = (indices-np.mean(indices))/np.std(indices)
     X = np.stack((indices,entropy_norm),axis=-1)
     # 初始化 HDBSCAN
-    clusterer = hdbscan.HDBSCAN(min_cluster_size=5)
+    clusterer = hdbscan.HDBSCAN(min_cluster_size=3)
     clusterer.fit(X)
     # TODO: add max_samples constraint
     # 初步聚类的标签
@@ -509,7 +565,7 @@ def hdbscan_with_custom_merge(entropy, dir, rollout_id, plot=True):
     # initial_labels[:50] = -1
     
     # 后处理步骤，确保每个簇最多包含25个样本
-    def split_large_clusters(labels, data, max_size=15):
+    def split_large_clusters(labels, data, max_size=10):
         unique_labels = np.unique(labels)
         new_label = max(labels) + 1  # 用于分配新的簇标签
 
@@ -551,49 +607,174 @@ def hdbscan_with_custom_merge(entropy, dir, rollout_id, plot=True):
         cluster_points = X[initial_labels == label]
         
         # 判断当前簇的第二个特征的值是否全部小于 0
-        if  np.all(cluster_points[:, 1] < 0): # 0
+        if  np.all(cluster_points[:, 1] < 0.): # 0
             refined_labels[initial_labels == label] = 0  # 合并到第 0 类
         else:
-            refined_labels[initial_labels == label] = -1  # 合并到第 1 类
+            refined_labels[initial_labels == label] = -1  # 合并到第 1 类"""
+    def merge_small_outliers(labels, max_gap=10):
+        # 找到所有离群点位置
+        is_outlier = (labels == -1)
+        diff = np.diff(is_outlier.astype(int))
+        
+        # 获取连续段的起止位置
+        starts = np.where(diff == 1)[0] + 1
+        ends = np.where(diff == -1)[0] + 1
+        
+        # 处理边界情况
+        if is_outlier[0]:
+            starts = np.insert(starts, 0, 0)
+        if is_outlier[-1]:
+            ends = np.append(ends, len(labels))
+            
+        # 生成新标签（从当前最大标签+1开始）
+        current_max = labels.max()
+        new_label = current_max + 1
+        
+        # 遍历所有连续离群段
+        for start, end in zip(starts, ends):
+            segment = slice(start, end)
+            
+            # 检查是否满足合并条件
+            if (end - start) < max_gap:
+                # 检查前后点是否为非离群点
+                prev_valid = start > 0 and labels[start-1] != -1
+                next_valid = end < len(labels) and labels[end] != -1
+                
+                if prev_valid and next_valid:
+                    labels[segment] = new_label
+                    new_label = 0  # 为每个段分配唯一标签
+                    
+        return labels
 
-    # 可视化原图
+    # 应用离群点合并策略
+    refined_labels = merge_small_outliers(refined_labels, max_gap=5)
+
+    def calculate_ema(data, window=5):
+        return pd.Series(data).ewm(span=window, adjust=False).mean().values
+
+    # 改进后的可视化函数
+    def plot_colored_ema(ax, time_steps, ema_data, cluster_labels):
+        from matplotlib.collections import LineCollection
+        from matplotlib.colors import ListedColormap
+
+        # 转换标签为0/1（原-1转为1）
+        color_labels = np.where(cluster_labels == 0, 0, 1)
+        
+        # 创建颜色映射（与聚类图保持一致）
+        cmap = ListedColormap(COLOR_SCHEME['professional'])
+        
+        # 创建线段集合
+        points = np.array([time_steps, ema_data]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+        
+        # 为每个线段分配颜色
+        lc = LineCollection(segments, cmap=cmap, linewidth=2.5)
+        lc.set_array(color_labels[:-1])  # 使用前n-1个点的颜色决定线段颜色
+        
+        # 添加集合到坐标轴
+        ax.add_collection(lc)
+        
+        # 设置坐标轴范围
+        ax.set_xlim(time_steps.min(), time_steps.max())
+        ax.set_ylim(ema_data.min()-0.1, ema_data.max()+0.1)
+        
+        return lc
+
     if plot:
-        plt.figure(figsize=(10, 6))
-        # entropy[entropy>(np.mean(entropy)+2*np.std(entropy))] = 0
-        plt.plot(np.arange(len(entropy_norm)), entropy_norm, marker='o', markersize=5)  # 使用点标记每个数据点
-        # plt.ylim([0, np.mean(entropy)+2*np.std(entropy)])
-        plt.title('1D Data Plot')
-        plt.xlabel('Timestep')
-        plt.ylabel('Entropy')
-        plt.grid(True)  # 添加网格线
+        # 统一样式设置
+        plt.style.use('classic')
+        plt.rcParams.update({
+            'font.family': 'DejaVu Sans',
+            'axes.titlesize': 13,
+            'axes.labelsize': 11,
+            'axes.facecolor': 'white',     # 坐标区域白底
+            'figure.facecolor': 'white',   # 整体画布白底
+            'grid.color': '#eeeeee',       # 浅灰色网格
+            'grid.linestyle': '--',
+            'grid.alpha': 0.7
+        })
+        # 生成EMA数据
+        time_steps = np.arange(len(entropy_norm))/15  # 假设15Hz采样率
+        ema_data = entropy_norm #calculate_ema(entropy_norm, window=7)
+
+        # 创建EMA可视化图表
+        fig, ax = plt.subplots(figsize=(12, 2.5))
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        
+        ax.yaxis.set_ticks_position('left')  # 只保留左侧Y轴刻度
+        ax.xaxis.set_ticks_position('bottom') # 只保留底部X轴刻度
+        # 添加坐标轴箭头（EMA图）
+        arrow_props = dict(
+            color='#404040',
+            linewidth=1.2,
+            arrowstyle='<-,head_width=0.4,head_length=0.8',
+            zorder=10
+        )
+
+        # X轴右箭头
+        ax.annotate('', 
+                   xy=(1, 0), 
+                   xycoords='axes fraction',
+                   xytext=(1.05, 0),
+                   arrowprops=arrow_props)
+
+        # Y轴上箭头
+        ax.annotate('', 
+                   xy=(0, 1), 
+                   xycoords='axes fraction',
+                   xytext=(0, 1.05),
+                   arrowprops=arrow_props)
+        # 绘制彩色EMA曲线
+        lc = plot_colored_ema(ax, time_steps, ema_data, refined_labels)
+        
+        # 添加颜色条（与聚类结果对应）
+        cbar = plt.colorbar(lc, ax=ax)
+        cbar.set_ticks([0, 1])
+        cbar.set_ticklabels(['Precise', 'Casual'])
+        # cbar.set_label('Behavior Pattern', rotation=270, labelpad=20)
+
+        # 图表装饰
+        # ax.set_title('Entropy curve\n', pad=15)
+        ax.set_xlabel('Time (s)', labelpad=8)
+        ax.set_ylabel('Normalized Entropy', labelpad=8)
+        ax.grid(True, alpha=0.4)
+        
+        
+        # 保存图像
+        plt.tight_layout()
         os.makedirs(os.path.join(dir, "plot"), exist_ok=True)
-        plt.savefig(os.path.join(dir, f"plot/rollout{rollout_id}-entropy-curve.png"))
+        plt.savefig(os.path.join(dir, f"plot/rollout{rollout_id}-colored-ema.png"), 
+                   dpi=300, bbox_inches='tight')
         plt.close()
 
-    # 可视化初步聚类结果
+    # 聚类可视化（保持颜色对应）
     if plot:
-        plt.figure(figsize=(10, 6))
-        plt.scatter(X[:, 0], X[:, 1], c=initial_labels, cmap='viridis', marker='o')
-        plt.title('HDBSCAN Initial Clustering')
-        plt.xlabel('Feature 1')
-        plt.ylabel('Feature 2')
-        plt.colorbar(label='Cluster Label')
-        os.makedirs(os.path.join(dir, "plot"), exist_ok=True)
-        plt.savefig(os.path.join(dir, f"plot/rollout{rollout_id}-hdbscan-raw.png"))
+        # 合并后聚类（匹配EMA颜色方案）
+        fig, ax = plt.subplots(figsize=(10, 8))
+        scatter = ax.scatter(
+            X[:, 0], X[:, 1],
+            c=np.where(refined_labels == 0, 0, 1),  # 统一颜色映射
+            cmap=ListedColormap(['royalblue', 'darkorange']),
+            s=60,
+            alpha=0.8,
+            edgecolors='w'
+        )
+        
+        ax.set_title('Final Behavior Clustering\n', fontsize=13)
+        ax.set_xlabel('Normalized Timestep', fontsize=11)
+        ax.set_ylabel('Normalized Entropy', fontsize=11)
+        
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_ticks([0, 1])
+        cbar.set_ticklabels(['Stable Phase', 'Active Phase'])
+        cbar.set_label('Pattern Type', rotation=270, labelpad=20)
+        
+        plt.savefig(os.path.join(dir, f"plot/rollout{rollout_id}-final-clusters.png"), 
+                   dpi=300, transparent=True)
         plt.close()
 
-    # 可视化合并后的结果
-    if plot:
-        plt.figure(figsize=(10, 6))
-        scatter = plt.scatter(X[:, 0], X[:, 1], c=refined_labels, cmap='viridis', marker='o')
-        cbar = plt.colorbar(scatter)
-        cbar.set_label('Refined Cluster Label', rotation=270, labelpad=15)
-        plt.title('HDBSCAN + Custom Merge Clustering')
-        plt.xlabel('Feature 1')
-        plt.ylabel('Feature 2')
-        plt.grid(True)
-        plt.savefig(os.path.join(dir, f"plot/rollout{rollout_id}-hdbscan-refine.png"))
-        plt.close()
+    print('Precision rate:', list(refined_labels).count(0)/len(refined_labels))
     return np.abs(refined_labels)
 
 def kmeans_clustering(data,dir, rollout_id, max_clusters=10, plot_results=True):

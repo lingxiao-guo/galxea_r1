@@ -59,14 +59,14 @@ class ImagePostProcessor(object):
         # right_hand_depth_topic = RIGHT_CAMERA_PREFIX + CAMERA_DEPTH_TOPIC
         head_timestamps, head_images = self.load_rgb_images(image_messages[head_image_topic])
         data_dict = {"/upper_body_observations/rgb_head": head_images}
-        # left_hand_timestamps, left_hand_images = self.load_rgb_images(image_messages[left_hand_topic])
-        # if len(left_hand_images) == 0:
-        #     left_hand_timestamps, left_hand_images = self.load_rgb_images(image_messages[right_hand_topic])
-        # aligned_timestamps_left_hand_images, left_hand_images = utlis.registrated_images(reference_timestamps, left_hand_timestamps, left_hand_images)
-        # data_dict["/upper_body_observations/rgb_left_hand"] = left_hand_images
-        # right_hand_timestamps, right_hand_images = self.load_rgb_images(image_messages[right_hand_topic])
-        # aligned_timestamps_right_hand_images, right_hand_images = utlis.registrated_images(reference_timestamps, right_hand_timestamps, right_hand_images)
-        # data_dict["/upper_body_observations/rgb_right_hand"] = right_hand_images
+        left_hand_timestamps, left_hand_images = self.load_rgb_images(image_messages[left_hand_topic])
+        if len(left_hand_images) == 0:
+            left_hand_timestamps, left_hand_images = self.load_rgb_images(image_messages[right_hand_topic])
+        aligned_timestamps_left_hand_images, left_hand_images = utlis.registrated_images(reference_timestamps, left_hand_timestamps, left_hand_images)
+        data_dict["/upper_body_observations/rgb_left_hand"] = left_hand_images
+        right_hand_timestamps, right_hand_images = self.load_rgb_images(image_messages[right_hand_topic])
+        aligned_timestamps_right_hand_images, right_hand_images = utlis.registrated_images(reference_timestamps, right_hand_timestamps, right_hand_images)
+        data_dict["/upper_body_observations/rgb_right_hand"] = right_hand_images
         # head_depth_timestamps, head_depth_images = self.load_depth_images(image_messages[head_camera_depth_topic])
         # _, head_depth_images = utlis.registrated_images(reference_timestamps, head_depth_timestamps, head_depth_images)
         # data_dict["/upper_body_observations/depth_head"] = head_depth_images
@@ -79,9 +79,9 @@ class ImagePostProcessor(object):
         data_dict_list = utlis.dict_to_dict_list(data_dict, index_array)
         # save reference_timestamps, aligned_timestamps_left_hand_images, aligned_timestamps_right_hand_images into a npz file
         np_ref = np.array(reference_timestamps)
-        # np_lf = np.array(aligned_timestamps_left_hand_images)
-        # np_rf = np.array(aligned_timestamps_right_hand_images)
-        # np.savez("image_aligned_timestamps.npz", reference_timestamps=np_ref, left_hand_timestamps=np_lf, right_hand_timestamps=np_lf) # hardcode for lf, rf
+        np_lf = np.array(aligned_timestamps_left_hand_images)
+        np_rf = np.array(aligned_timestamps_right_hand_images)
+        np.savez("image_aligned_timestamps.npz", reference_timestamps=np_ref, left_hand_timestamps=np_lf, right_hand_timestamps=np_lf) # hardcode for lf, rf
         return data_dict_list
 
 

@@ -23,7 +23,7 @@ def process_group(group, valid_indices, new_group):
             new_subgroup = new_group.create_group(key)
             process_group(item, valid_indices, new_subgroup)
             
-def clean_h5_files(input_folder, output_folder="clean", threshold=0.001):
+def clean_h5_files(input_folder, output_folder="clean", threshold=0.0):
     # 确保输出文件夹存在
     output_folder = os.path.join(input_folder,'../',output_folder)
     plot_folder = os.path.join(input_folder,'../','plot/')
@@ -68,7 +68,7 @@ def clean_h5_files(input_folder, output_folder="clean", threshold=0.001):
             keep_indices = [True] * len(concat_data)
             for i in range(1, len(concat_data)):
                 slope = np.linalg.norm((concat_data[i] - concat_data[i-1]),axis=-1)
-                if slope < threshold:
+                if slope <= threshold:
                     keep_indices[i] = False
             
             
@@ -76,10 +76,7 @@ def clean_h5_files(input_folder, output_folder="clean", threshold=0.001):
             with h5py.File(output_path, 'w') as new_file:
             # 递归处理所有组和数据集
                 process_group(src_file, keep_indices, new_file)
-                obs_list = []
-                for key in obs_keys:
-                    obs_list.append(new_file[key][:])
-                obs = np.concatenate(obs_list, axis=-1)
+               
                         
             # 沿最后一个维度拼接数据
             concat_data = np.concatenate(data_list, axis=-1)            
@@ -98,7 +95,7 @@ def clean_h5_files(input_folder, output_folder="clean", threshold=0.001):
                 plt.subplot(n_rows, n_cols, i + 1)
                 # 绘制当前维度的数据
                 plt.plot(cleaned_concat_data[:, i], label=f'target {i+1}')
-                plt.plot(obs[:, i], label=f'obs {i+1}')
+                
                 # 添加标题和标签
                 plt.title(f'Dim {i+1}')
                 plt.xlabel('Time Step')

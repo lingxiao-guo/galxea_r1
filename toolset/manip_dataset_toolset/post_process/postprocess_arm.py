@@ -10,7 +10,7 @@ from geometry_msgs.msg import Transform, Twist, PoseStamped
 import manip_dataset_toolset.utlis.postprocess_utlis as utlis  # 保持数据处理脚本的相对独立，这样能单独分发出去
 import time
 
-GRIPPER_COMMAND_TOPIC = "/motion_control/position_control_gripper"
+GRIPPER_COMMAND_TOPIC = "/motion_target/target_position_gripper"
 ARM_EE_COMMAND_TOPIC = "/motion_target/target_pose_arm"
 ARM_JOINT_COMMAND_TOPIC = "/hdas/feedback_arm" #"/motion_target/target_joint_state_arm"
 ARM_JOINT_STATES_TOPIC = "/hdas/feedback_arm"
@@ -199,7 +199,7 @@ class ArmPostProcessor(object):
         positions = []
         for msg, t in messages:
             timestamps.append(t.to_sec())
-            positions.append([msg.data])
+            positions.append([msg.position[0]])
         utlis.frequency_helper(timestamps, "gripper_command_topic", self.logger)
         timestamps = np.array(timestamps)
         positions = np.array(positions)

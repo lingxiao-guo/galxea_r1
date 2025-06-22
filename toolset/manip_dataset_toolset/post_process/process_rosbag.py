@@ -30,7 +30,7 @@ RIGHT_CAMERA_PREFIX = "/hdas/camera_wrist_right"
 CAMERA_TOPIC = "/color/image_raw/compressed"
 CAMERA_DEPTH_TOPIC = "/aligned_depth_to_color/image_raw"
 
-GRIPPER_COMMAND_TOPIC = "/motion_control/position_control_gripper"
+GRIPPER_COMMAND_TOPIC = "/motion_target/target_position_gripper"
 ARM_EE_COMMAND_TOPIC = "/motion_target/target_pose_arm"
 ARM_JOINT_COMMAND_TOPIC = "/motion_control/control_arm" 
 ARM_JOINT_STATES_TOPIC = "/hdas/feedback_arm"
@@ -227,13 +227,13 @@ class RosbagProcessor:
         input_bag.close()
         image_data_dict = self.image_processor.process(image_messages, head_timestamps, index_array)
         arm_data_dict = self.arm_processor.process(arm_messages, head_timestamps, index_array)
-        base_data_dict = self.base_processor.process(base_messages, head_timestamps, index_array)
+        # base_data_dict = self.base_processor.process(base_messages, head_timestamps, index_array)
         
         for i in range(len(image_data_dict)):
             data_dict = {}
             data_dict.update(image_data_dict[i])
             data_dict.update(arm_data_dict[i])
-            data_dict.update(base_data_dict[i])
+            # data_dict.update(base_data_dict[i])
 
             if self.use_zarr:
                 empty_keys = []
